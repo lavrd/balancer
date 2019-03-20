@@ -1,2 +1,2 @@
 # balancer
-Load balancer with hot reload
+L4 load balancer with hot reload
