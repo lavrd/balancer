@@ -1,0 +1,103 @@
+package balancer_test
+
+import (
+	"balancer/pkg/balancer"
+	"balancer/pkg/strategies"
+	"context"
+	"fmt"
+	"net"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestEndpoints(t *testing.T) {
+	var cases = []struct {
+		name     string
+		endpoint string
+		expected bool
+	}{
+		{
+			"success",
+			"http://endpoint.com/",
+			false,
+		},
+		{
+			"invalid",
+			"smth",
+			true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := balancer.New(&balancer.Opts{})
+			require.NoError(t, err)
+
+			err = b.AddEndpoint(c.endpoint)
+			require.Equal(t, c.expected, balancer.IsErrInvalidEndpoint(err))
+		})
+	}
+}
+
+func TCPServer(port int, ctx context.Context, t *testing.T) {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	require.NoError(t, err)
+	defer listener.Close()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			conn, err := listener.Accept()
+			require.NoError(t, err)
+			defer conn.Close()
+
+			var buff = make([]byte, 3)
+
+			_, err = conn.Read(buff)
+			require.NoError(t, err)
+
+			_, err = conn.Write(buff)
+			require.NoError(t, err)
+		}
+	}
+}
+
+func TestRun(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	go TCPServer(1001, ctx, t)
+	go TCPServer(1002, ctx, t)
+
+	b, err := balancer.New(&balancer.Opts{
+		Port:     2000,
+		Strategy: strategies.RoundRobin,
+	})
+	require.NoError(t, err)
+
+	err = b.AddEndpoint("localhost:1001")
+	require.NoError(t, err)
+	err = b.AddEndpoint("localhost:1002")
+	require.NoError(t, err)
+
+	go func() {
+		err := b.Run(ctx)
+		require.NoError(t, err)
+	}()
+
+	conn, err := net.Dial("tcp", "localhost:2000")
+	require.NoError(t, err)
+
+	_, err = conn.Write([]byte{1, 2, 3})
+	require.NoError(t, err)
+
+	var buff = make([]byte, 3)
+	_, err = conn.Read(buff)
+	require.NoError(t, err)
+
+	require.Equal(t, []byte{1, 2, 3}, buff)
+}

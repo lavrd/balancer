@@ -1,2 +1,2 @@
 # balancer
-L4 load balancer with hot reload
+TCP load balancer with hot reload
