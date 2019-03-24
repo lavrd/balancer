@@ -17,7 +17,7 @@ const (
 
 var (
 	// ErrInvalidEndpointPrefix contains err invalid endpoint prefix
-	ErrInvalidEndpointPrefix = "invelid endpoint: "
+	ErrInvalidEndpointPrefix = "invalid endpoint: "
 	// ErrInvalidEndpoint means that you pass invalid endpoint to balancer
 	ErrInvalidEndpoint = func(endpoint string) error {
 		return fmt.Errorf("%s%s", ErrInvalidEndpointPrefix, endpoint)
@@ -72,7 +72,9 @@ func (b *Balancer) Run(ctx context.Context) error {
 func (b *Balancer) proxy(in net.Conn) {
 	defer in.Close()
 
-	out, err := net.Dial(TCP, b.Strategy.Get())
+	endpoint := b.Strategy.Get()
+
+	out, err := net.Dial(TCP, endpoint)
 	if err != nil {
 		return
 	}

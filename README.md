@@ -1,2 +1,2 @@
 # balancer
-TCP load balancer with hot reload
+TCP load balancer with hot endpoints update
